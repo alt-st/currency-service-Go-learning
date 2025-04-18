@@ -1,0 +1,76 @@
+services:
+  # --- Сервис приложения (без изменений) ---
+  app:
+    build: .
+    container_name: currency_app
+    ports:
+      - "8080:8080"
+    environment:
+      # Переменные для подключения к ОСНОВНОЙ БД
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_USER: user
+      DB_PASSWORD: password
+      DB_NAME: currency_db
+      # TZ: Europe/Moscow # Пример установки часового пояса
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - currency-network
+
+  # --- ОСНОВНАЯ База данных ---
+  db:
+    image: postgres:15-alpine
+    container_name: currency_db
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: currency_db
+      # TZ: Europe/Moscow
+      # PG TZ: Europe/Moscow
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      # Основная БД доступна на хосте по порту 5433
+      - "5433:5432"
+    networks:
+      - currency-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d currency_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # --- (!!!) ТЕСТОВАЯ База данных (!!!) ---
+  db_test:
+    image: postgres:15-alpine
+    container_name: currency_db_test # Другое имя контейнера
+    environment:
+      # Используем ДРУГИЕ креды и имя БД для тестов
+      POSTGRES_USER: test_user
+      POSTGRES_PASSWORD: test_password
+      POSTGRES_DB: currency_db_test # Другое имя БД
+    volumes:
+      # Можно использовать отдельный volume для тестовых данных, если нужно их сохранять
+      # Или оставить без volume, тогда данные будут теряться при перезапуске контейнера (что хорошо для тестов)
+      - postgres_test_data:/var/lib/postgresql/data # Пример отдельного volume
+    ports:
+      # Пробрасываем на ДРУГОЙ порт хоста, чтобы не конфликтовать с основной БД
+      - "5434:5432" # !!! Тестовая БД доступна на хосте по порту 5434 !!!
+    networks:
+      # Подключаем к той же сети, чтобы тесты (запущенные на хосте) могли подключиться
+      - currency-network
+    # Healthcheck здесь не обязателен, т.к. приложение от него не зависит напрямую
+    # Тесты сами должны уметь ждать готовности БД, если это нужно (TestMain пока не ждет)
+
+# --- Сети (без изменений) ---
+networks:
+  currency-network:
+    driver: bridge
+
+# --- Тома ---
+volumes:
+  postgres_data: {} # Том для основной БД
+  postgres_test_data: {} # (!!!) Отдельный том для тестовой БД

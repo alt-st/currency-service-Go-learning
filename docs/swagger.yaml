@@ -1,0 +1,275 @@
+basePath: /api/v1
+definitions:
+  currency-service_internal_models.AverageResponse:
+    properties:
+      average:
+        type: number
+      count:
+        type: integer
+    type: object
+  currency-service_internal_models.ConvertRequest:
+    properties:
+      amount_to_convert:
+        type: number
+      first_name:
+        description: Пока не используется в логике, но есть в запросе
+        type: string
+      last_name:
+        description: Пока не используется в логике, но есть в запросе
+        type: string
+      source_wallet_number:
+        type: string
+      user_id:
+        description: Пока не используется в логике, но есть в запросе
+        type: string
+    type: object
+  currency-service_internal_models.ConvertResponse:
+    properties:
+      converted_amount:
+        description: Поле будет заполнено при успехе
+        type: number
+      message:
+        description: Сообщение об успехе или ошибке
+        type: string
+      rate_used:
+        description: Поле будет заполнено при успехе
+        type: number
+      remaining_balance:
+        description: Поле будет заполнено при успехе
+        type: number
+      source_wallet_number:
+        type: string
+    type: object
+  currency-service_internal_models.ErrorResponse:
+    properties:
+      error:
+        description: Содержит текст ошибки для клиента
+        example: Сообщение об ошибке
+        type: string
+    type: object
+  currency-service_internal_models.ListWalletsResponse:
+    properties:
+      wallets:
+        items:
+          $ref: '#/definitions/currency-service_internal_models.Wallet'
+        type: array
+    type: object
+  currency-service_internal_models.Rate:
+    properties:
+      timestamp:
+        type: string
+      value:
+        type: number
+    type: object
+  currency-service_internal_models.SuccessResponse:
+    properties:
+      message:
+        description: Сообщение об успехе
+        example: Операция выполнена успешно
+        type: string
+    type: object
+  currency-service_internal_models.UpdateBalanceRequest:
+    properties:
+      amount:
+        description: Может быть положительным (пополнение) или отрицательным (списание)
+        type: number
+      wallet_number:
+        type: string
+    type: object
+  currency-service_internal_models.UpdateBalanceResponse:
+    properties:
+      message:
+        description: Сообщение об успехе или ошибке (например, недостаточно средств)
+        type: string
+      new_balance:
+        type: number
+      wallet_number:
+        type: string
+    type: object
+  currency-service_internal_models.Wallet:
+    properties:
+      balance:
+        description: Баланс кошелька
+        type: number
+      number:
+        description: Номер кошелька (7 знаков)
+        type: string
+    type: object
+externalDocs:
+  description: OpenAPI Spec
+  url: http://localhost:8080/swagger/doc.json
+host: localhost:8080
+info:
+  contact:
+    email: support@swagger.io
+    name: API Support
+    url: http://www.swagger.io/support
+  description: Сервис для управления курсами валют и кошельками.
+  license:
+    name: Apache 2.0
+    url: http://www.apache.org/licenses/LICENSE-2.0.html
+  termsOfService: http://swagger.io/terms/
+  title: Currency Service API
+  version: "1.0"
+paths:
+  /rates:
+    post:
+      consumes:
+      - application/json
+      description: Принимает значение курса в теле запроса и сохраняет его.
+      parameters:
+      - description: Данные для создания курса (нужно только поле 'value')
+        in: body
+        name: rate
+        required: true
+        schema:
+          $ref: '#/definitions/currency-service_internal_models.Rate'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Курс успешно добавлен
+          schema:
+            $ref: '#/definitions/currency-service_internal_models.SuccessResponse'
+        "400":
+          description: Некорректный формат запроса или значение курса
+          schema:
+            $ref: '#/definitions/currency-service_internal_models.ErrorResponse'
+        "500":
+          description: Внутренняя ошибка сервера
+          schema:
+            $ref: '#/definitions/currency-service_internal_models.ErrorResponse'
+      summary: Добавить новый курс валюты
+      tags:
+      - Rates
+  /rates/average:
+    get:
+      description: Возвращает среднее значение для последних N курсов валют.
+      parameters:
+      - description: Количество последних курсов для расчета (по умолчанию 10)
+        in: query
+        minimum: 1
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Средний курс и количество записей
+          schema:
+            $ref: '#/definitions/currency-service_internal_models.AverageResponse'
+        "400":
+          description: Некорректное значение параметра 'limit'
+          schema:
+            $ref: '#/definitions/currency-service_internal_models.ErrorResponse'
+        "500":
+          description: Внутренняя ошибка сервера
+          schema:
+            $ref: '#/definitions/currency-service_internal_models.ErrorResponse'
+      summary: Получить средний курс
+      tags:
+      - Rates
+  /wallets:
+    get:
+      description: Возвращает массив всех зарегистрированных кошельков с их балансами.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Список кошельков
+          schema:
+            $ref: '#/definitions/currency-service_internal_models.ListWalletsResponse'
+        "500":
+          description: Внутренняя ошибка сервера
+          schema:
+            $ref: '#/definitions/currency-service_internal_models.ErrorResponse'
+      summary: Получить список всех кошельков
+      tags:
+      - Wallets
+  /wallets/balance:
+    post:
+      consumes:
+      - application/json
+      description: Создает новый кошелек с указанным балансом (если сумма положительная)
+        или обновляет баланс существующего кошелька. Положительная сумма - пополнение,
+        отрицательная - списание. Списание с несуществующего кошелька или до отрицательного
+        баланса невозможно.
+      parameters:
+      - description: Данные для обновления баланса
+        in: body
+        name: balance_update
+        required: true
+        schema:
+          $ref: '#/definitions/currency-service_internal_models.UpdateBalanceRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Баланс успешно обновлен
+          schema:
+            $ref: '#/definitions/currency-service_internal_models.UpdateBalanceResponse'
+        "400":
+          description: Некорректный формат запроса, номера кошелька или суммы
+          schema:
+            $ref: '#/definitions/currency-service_internal_models.ErrorResponse'
+        "409":
+          description: Конфликт бизнес-логики (например, недостаточно средств)
+          schema:
+            $ref: '#/definitions/currency-service_internal_models.UpdateBalanceResponse'
+        "500":
+          description: Внутренняя ошибка сервера
+          schema:
+            $ref: '#/definitions/currency-service_internal_models.ErrorResponse'
+      summary: Создать кошелек или обновить баланс
+      tags:
+      - Wallets
+  /wallets/convert:
+    post:
+      consumes:
+      - application/json
+      description: Получает самый свежий курс, конвертирует указанную сумму и списывает
+        ее с баланса указанного кошелька. Возвращает остаток на счете и результат
+        конвертации.
+      parameters:
+      - description: Данные для конвертации и списания
+        in: body
+        name: conversion_request
+        required: true
+        schema:
+          $ref: '#/definitions/currency-service_internal_models.ConvertRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Конвертация и списание прошли успешно
+          schema:
+            $ref: '#/definitions/currency-service_internal_models.ConvertResponse'
+        "400":
+          description: Некорректный формат запроса, номера кошелька или суммы
+          schema:
+            $ref: '#/definitions/currency-service_internal_models.ErrorResponse'
+        "404":
+          description: Указанный кошелек не найден
+          schema:
+            $ref: '#/definitions/currency-service_internal_models.ErrorResponse'
+        "409":
+          description: 'Конфликт: недостаточно средств на кошельке'
+          schema:
+            $ref: '#/definitions/currency-service_internal_models.ConvertResponse'
+        "500":
+          description: Внутренняя ошибка сервера
+          schema:
+            $ref: '#/definitions/currency-service_internal_models.ErrorResponse'
+        "503":
+          description: Не удалось получить актуальный курс валют
+          schema:
+            $ref: '#/definitions/currency-service_internal_models.ErrorResponse'
+      summary: Конвертировать и списать сумму с кошелька
+      tags:
+      - Wallets
+securityDefinitions:
+  ApiKeyAuth:
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"
